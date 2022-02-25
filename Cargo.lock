@@ -116,6 +116,7 @@ dependencies = [
  "clap",
  "colorous",
  "flate2",
+ "lazy_static",
  "plotters",
  "regex",
 ]

@@ -1,6 +1,7 @@
+use anyhow::{anyhow, bail, Result};
+use lazy_static::lazy_static;
+use regex::Regex;
 use std::str::FromStr;
-
-use anyhow::{anyhow, Result, bail};
 
 // Partial implementation the GENCODE GTF file specification
 // https://www.gencodegenes.org/pages/data_format.html
@@ -55,6 +56,30 @@ impl FromStr for FeatureType {
 }
 
 #[derive(Debug)]
+pub struct Attributes {
+    pub gene_id: String,
+    pub transcript_id: String,
+}
+
+impl FromStr for Attributes {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        lazy_static! {
+            static ref RE: Regex =
+                Regex::new("gene_id \"(ENSG[^\"]+)\";.*transcript_id \"(ENST[^\"]+)\";").unwrap();
+        }
+
+        let captures = RE.captures(s).unwrap();
+
+        Ok(Self {
+            gene_id: captures[1].to_string(),
+            transcript_id: captures[2].to_string(),
+        })
+    }
+}
+
+#[derive(Debug)]
 pub struct GTFRecord {
     // pub chromosome_name: String,
     // pub annotation_source: String,
@@ -63,7 +88,7 @@ pub struct GTFRecord {
     pub end: usize,
     pub strand: Strand,
     // pub phase: Option<u8>,
-    pub attributes: String
+    pub attributes: Attributes,
 }
 
 impl FromStr for GTFRecord {
@@ -78,7 +103,7 @@ impl FromStr for GTFRecord {
 
         let err: Result<Self> = Err(anyhow!("Syntax error, not valid GENCODE GTF: \"{s}\""));
 
-        Ok(GTFRecord {
+        Ok(Self {
             feature_type: match cols.nth(2) {
                 Some(s) => s.parse::<FeatureType>()?,
                 None => return err,
@@ -96,7 +121,7 @@ impl FromStr for GTFRecord {
                 None => return err,
             },
             attributes: match cols.nth(1) {
-                Some(s) => s.to_owned(),
+                Some(s) => s.parse::<Attributes>()?,
                 None => return err,
             },
         })
@@ -105,6 +130,9 @@ impl FromStr for GTFRecord {
 
 impl GTFRecord {
     pub fn len(&self) -> usize {
-        (self.start as i64 - self.end as i64).abs().try_into().unwrap()
+        (self.start as i64 - self.end as i64)
+            .abs()
+            .try_into()
+            .unwrap()
     }
 }
