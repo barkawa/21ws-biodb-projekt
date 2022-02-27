@@ -77,14 +77,41 @@ pub fn plot2(data: &[(usize, f64)]) -> Result<()> {
         .y_desc("%GC")
         .y_label_formatter(&|y| format!("{:.0}", y * 100.0))
         .draw()?;
-    
-    chart.draw_series(LineSeries::new(data.iter().map(|(a, b)| (*a as i64 - 1000, *b)), ygb_color(1.0)))?;
+
+    chart.draw_series(LineSeries::new(
+        data.iter().map(|(a, b)| (*a as i64 - 1000, *b)),
+        ygb_color(1.0),
+    ))?;
 
     Ok(())
 }
 
-pub fn plot3() -> Result<()> {
-    todo!();
+pub fn plot3(avg_affinity: impl Iterator<Item = (i32, f64)>) -> Result<()> {
+    let figure = SVGBackend::new("promotor-nsome-affinity.svg", (800, 250)).into_drawing_area();
+
+    figure.fill(&WHITE).unwrap();
+
+    let mut chart = ChartBuilder::on(&figure)
+        .margin(10)
+        .set_label_area_size(LabelAreaPosition::Left, 40)
+        .set_label_area_size(LabelAreaPosition::Bottom, 40)
+        .caption(
+            "Average Promotor Region Nucleosome Affinity",
+            ("sans-serif", 14),
+        )
+        .build_cartesian_2d(-1000i32..100i32, 0.0f64..1.5f64)?;
+
+    // configure labels, axes, etc.
+    chart
+        .configure_mesh()
+        .disable_mesh()
+        .x_desc("bp")
+        .y_desc("MNase-seq signal")
+        .draw()?;
+
+    chart.draw_series(LineSeries::new(avg_affinity, ygb_color(1.0)))?;
+
+    Ok(())
 }
 
 fn ygb_color(idx: f64) -> plotters::style::RGBColor {

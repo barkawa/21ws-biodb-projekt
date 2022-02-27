@@ -82,10 +82,10 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    let mut reader = BigWigRead::from_file_and_attach(cli.mnase_seq.as_str()).unwrap();
+    
     if cli.promotor_nsome_affinity {
-        let mut reader = BigWigRead::from_file_and_attach(cli.mnase_seq.as_str()).unwrap();
-
-        let mut total_affinity = [0.0; 1100];
+        let mut total_affinity = [(0u32, 0.0); 1100];
 
         for p in &promotors {
             let mut affinity =
@@ -96,13 +96,17 @@ fn main() -> Result<()> {
             }
 
             for (i, v) in affinity.iter().enumerate() {
-                total_affinity[i] += *v as f64;
+                if !v.is_nan() {
+                    total_affinity[i].1 += *v as f64;
+                    total_affinity[i].0 += 1;
+                }
             }
         }
 
-        let avg_affinity = total_affinity.iter().map(|&x| x / promotors.len() as f64);
+        let avg_affinity =
+            (-1000..100).zip(total_affinity.iter().map(|&(count, v)| v / count as f64 ));
 
-        plots::plot3()?;
+        plots::plot3(avg_affinity)?;
         return Ok(());
     }
 
