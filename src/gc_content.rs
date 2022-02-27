@@ -1,6 +1,6 @@
 /// Iterates over a sequence slice with a sliding window,
 /// calculates the average gc-content inside each window,
-/// and returns an iterator over (window_start_index, average_gc_content)
+/// and returns an iterator over (window_center, average_gc_content)
 pub fn get_gc_content(
     sequence: &[u8],
     window_size: usize,
@@ -20,5 +20,5 @@ pub fn get_gc_content(
         })
         .map(move |sum| sum as f64 / window_size as f64);
 
-    (0..).step_by(step).zip(iter)
+    ((window_size/2)..).step_by(step).zip(iter)
 }

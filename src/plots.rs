@@ -5,7 +5,7 @@ use plotters::prelude::*;
 use crate::gc_content::get_gc_content;
 
 // Rust really needs a better plotting library...
-pub fn plot_gc_content(record: &fasta::Record, window_size: usize) -> Result<()> {
+pub fn plot1(record: &fasta::Record, window_size: usize) -> Result<()> {
     let figure = SVGBackend::new("gc-content.svg", (800, 250)).into_drawing_area();
 
     figure.fill(&WHITE).unwrap();
@@ -14,7 +14,7 @@ pub fn plot_gc_content(record: &fasta::Record, window_size: usize) -> Result<()>
         .margin(10)
         .set_label_area_size(LabelAreaPosition::Left, 40)
         .set_label_area_size(LabelAreaPosition::Bottom, 40)
-        .caption(record.desc().unwrap(), ("Source Sans Pro", 14))
+        .caption(record.desc().unwrap(), ("sans-serif", 14))
         .build_cartesian_2d(0..(record.seq().len()), 0f64..0.75f64)?;
 
     // configure labels, axes, etc.
@@ -33,7 +33,7 @@ pub fn plot_gc_content(record: &fasta::Record, window_size: usize) -> Result<()>
         let gc_content_iter = get_gc_content(
             record.seq(),
             window_size * window_size_factor,
-            window_size / 10,
+            (window_size * window_size_factor) / 10,
         );
 
         chart
@@ -54,6 +54,32 @@ pub fn plot_gc_content(record: &fasta::Record, window_size: usize) -> Result<()>
         .draw()?;
 
     figure.present()?;
+    Ok(())
+}
+
+pub fn plot2(data: &[(usize, f64)]) -> Result<()> {
+    let figure = SVGBackend::new("promotor-gc.svg", (800, 250)).into_drawing_area();
+
+    figure.fill(&WHITE).unwrap();
+
+    let mut chart = ChartBuilder::on(&figure)
+        .margin(10)
+        .set_label_area_size(LabelAreaPosition::Left, 40)
+        .set_label_area_size(LabelAreaPosition::Bottom, 40)
+        .caption("Average Promotor Region GC-Content", ("sans-serif", 14))
+        .build_cartesian_2d(-950i64..50i64, 0.45f64..0.6f64)?;
+
+    // configure labels, axes, etc.
+    chart
+        .configure_mesh()
+        .disable_mesh()
+        .x_desc("bp")
+        .y_desc("%GC")
+        .y_label_formatter(&|y| format!("{:.0}", y * 100.0))
+        .draw()?;
+    
+    chart.draw_series(LineSeries::new(data.iter().map(|(a, b)| (*a as i64 - 1000, *b)), ygb_color(1.0)))?;
+
     Ok(())
 }
 

@@ -119,6 +119,7 @@ dependencies = [
  "lazy_static",
  "plotters",
  "regex",
+ "rustplotlib",
 ]
 
 [[package]]
@@ -1134,6 +1135,12 @@ checksum = "f0dfe2087c51c460008730de8b57e6a320782fbfb312e1f4d520e6c6fae155ee"
 dependencies = [
  "semver 0.11.0",
 ]
+
+[[package]]
+name = "rustplotlib"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4326f7ac67e4ff419282ad12dabf1fcad09481a849b72108c890e01414ebb88a"
 
 [[package]]
 name = "rustversion"

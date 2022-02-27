@@ -165,7 +165,7 @@ pub fn read_gtf_file(annotations: &Path) -> Result<Vec<GTFRecord>> {
 }
 
 pub fn get_longest_transcripts(gtf_records: &[GTFRecord]) -> Result<Vec<&GTFRecord>> {
-    let mut longest_transcript_candidates: HashMap<&str, &GTFRecord> = HashMap::new();
+    let mut longest_transcript_candidates: HashMap<&str, &GTFRecord> = HashMap::new(); // (gene_id, longest_transcript_so_far)
 
     let transcripts = gtf_records
         .iter()
