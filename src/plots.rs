@@ -83,6 +83,10 @@ pub fn plot2(data: &[(usize, f64)]) -> Result<()> {
     Ok(())
 }
 
+pub fn plot3() -> Result<()> {
+    todo!();
+}
+
 fn ygb_color(idx: f64) -> plotters::style::RGBColor {
     let color = colorous::YELLOW_GREEN_BLUE.eval_continuous(idx).as_tuple();
     plotters::style::RGBColor {
