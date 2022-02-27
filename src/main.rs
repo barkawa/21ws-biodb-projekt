@@ -5,16 +5,11 @@ mod plots;
 use anyhow::{anyhow, Result};
 use bio::io::fasta;
 use clap::Parser;
-use flate2::read::GzDecoder;
-use regex::Regex;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     fs::File,
-    io::{BufRead, BufReader},
     path::{Path, PathBuf},
 };
-
-use crate::gtf::GTFRecord;
 
 #[derive(Parser)]
 #[clap(author)]
@@ -54,21 +49,68 @@ fn main() -> Result<()> {
         plots::plot_gc_content(&fasta_record, 5000)?;
     }
 
-    if cli.promotor_gc {
-        let records = read_gtf_file(&cli.annotations)?;
-        let longest_transcripts = get_longest_transcripts(&records)?;
+    let records = gtf::read_gtf_file(&cli.annotations)?;
+    let longest_transcripts = gtf::get_longest_transcripts(&records)?;
 
-        let ids: HashSet<_> = HashSet::from_iter(
-            longest_transcripts
-                .iter()
-                .map(|&r| &r.attributes.transcript_id),
-        );
-
-        let start_codons: Vec<_> = records
+    let ids: HashSet<_> = HashSet::from_iter(
+        longest_transcripts
             .iter()
-            .filter(|&r| r.feature_type == gtf::FeatureType::StartCodon)
-            .filter(|&r| ids.contains(&r.attributes.transcript_id))
-            .collect();
+            .map(|&r| &r.attributes.transcript_id),
+    );
+
+    let start_codons: Vec<_> = records
+        .iter()
+        .filter(|&r| r.feature_type == gtf::FeatureType::StartCodon)
+        .filter(|&r| ids.contains(&r.attributes.transcript_id))
+        .collect();
+
+    let mut raw_promotors: Vec<PromotorRegion> = Vec::with_capacity(start_codons.len());
+
+    // ATG is at 1000, CAT at 98
+    // in fasta: ATG at p.start+1000, CAT at p.end+98
+    for start_codon in &start_codons {
+        if start_codon.strand == gtf::Strand::Plus {
+            let start = start_codon.start - 1001;
+            let end = start_codon.start + 100;
+
+            raw_promotors.push(PromotorRegion {
+                sequence: &fasta_record.seq()[start..end],
+                location: start,
+                strand: gtf::Strand::Plus,
+            });
+        } else {
+            let start = start_codon.end + 1000;
+            let end = start_codon.end - 101;
+
+            raw_promotors.push(PromotorRegion {
+                sequence: &fasta_record.seq()[end..start],
+                location: end,
+                strand: gtf::Strand::Minus,
+            });
+        }
+    }
+
+    if cli.promotor_gc {
+        let promotors = raw_promotors
+            .iter()
+            .map(|p| match p.strand {
+                Plus => p.sequence,
+                Minus => &p.get_opposite_sequence(),
+            })
+            .map(|p| gc_content::get_gc_content(p, 150, 1));
+            
+
+        // for p in &promotors {
+        //     println!(
+        //         "{} {}",
+        //         String::from_utf8_lossy(&p.sequence[1000..1003]),
+        //         if p.start < p.end {
+        //             String::from_utf8_lossy(&fasta_record.seq()[p.start+1000..p.end-98])
+        //         } else {
+        //             String::from_utf8_lossy(&fasta_record.seq()[p.end+98..p.start-1000])
+        //         }
+        //     );
+        // }
     }
 
     if cli.promotor_nsome_affinity {
@@ -80,6 +122,29 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+#[derive(Debug)]
+struct PromotorRegion<'a> {
+    sequence: &'a [u8],
+    location: usize,
+    strand: gtf::Strand,
+}
+
+impl PromotorRegion<'_> {
+    fn get_opposite_sequence(&self) -> Vec<u8> {
+        self.sequence
+            .into_iter()
+            .rev()
+            .map(|&x| match x {
+                b'A' => b'T',
+                b'T' => b'A',
+                b'G' => b'C',
+                b'C' => b'G',
+                other => other,
+            })
+            .collect()
+    }
 }
 
 fn read_fasta_record(path: &Path) -> Result<fasta::Record> {
@@ -95,64 +160,5 @@ fn read_fasta_record(path: &Path) -> Result<fasta::Record> {
             }
         }
         None => Err(anyhow!("Error: FASTA file has no records")),
-    }
-}
-
-fn read_gtf_file(annotations: &Path) -> Result<Vec<GTFRecord>> {
-    let reader = MaybeCompressedReader::new(annotations)?;
-
-    // Select the lines we need with a regex first, and parse later (for performance reasons)
-    let regex = Regex::new(
-        r"^chr1\t(?:HAVANA|ENSEMBL)\t(?:transcript|start_codon).*gene_type..protein_coding.;",
-    )
-    .unwrap();
-
-    let records: Result<Vec<GTFRecord>> = reader
-        .lines()
-        .map(|line| line.unwrap())
-        .filter(|line| !line.starts_with('#'))
-        .filter(|line| regex.is_match(line))
-        .map(|line| line.parse::<GTFRecord>())
-        .collect();
-
-    records
-}
-
-fn get_longest_transcripts(gtf_records: &[GTFRecord]) -> Result<Vec<&GTFRecord>> {
-    let mut longest_transcript_candidates: HashMap<&str, &GTFRecord> = HashMap::new();
-
-    let transcripts = gtf_records
-        .iter()
-        .filter(|&r| r.feature_type == gtf::FeatureType::Transcript);
-
-    for candidate in transcripts {
-        longest_transcript_candidates
-            .entry(&candidate.attributes.gene_id)
-            .and_modify(|current| {
-                if candidate.len() > current.len() {
-                    *current = candidate;
-                }
-            })
-            .or_insert(candidate);
-    }
-
-    let longest_transcripts: Vec<_> = longest_transcript_candidates.values().map(|x| *x).collect();
-
-    Ok(longest_transcripts)
-}
-
-/// Reader for a file that could be gzip compressed or not
-struct MaybeCompressedReader;
-
-impl MaybeCompressedReader {
-    /// Checks if the file is gz compressed by looking at the extension,
-    /// and returns the correct Reader
-    fn new(path: &Path) -> Result<Box<dyn BufRead>> {
-        match path.extension() {
-            Some(ext) if ext == "gz" => {
-                Ok(Box::new(BufReader::new(GzDecoder::new(File::open(path)?))))
-            }
-            _ => Ok(Box::new(BufReader::new(File::open(path)?))),
-        }
     }
 }

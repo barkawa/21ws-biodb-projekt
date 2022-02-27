@@ -15,7 +15,7 @@ pub fn plot_gc_content(record: &fasta::Record, window_size: usize) -> Result<()>
         .set_label_area_size(LabelAreaPosition::Left, 40)
         .set_label_area_size(LabelAreaPosition::Bottom, 40)
         .caption(record.desc().unwrap(), ("Source Sans Pro", 14))
-        .build_cartesian_2d(0..(record.seq().len()), 0f32..0.75f32)?;
+        .build_cartesian_2d(0..(record.seq().len()), 0f64..0.75f64)?;
 
     // configure labels, axes, etc.
     chart
@@ -30,7 +30,11 @@ pub fn plot_gc_content(record: &fasta::Record, window_size: usize) -> Result<()>
 
     // plot the gc content with 3 different window sizes, and different colors
     for (window_size_factor, color_idx) in [(1, 0.3), (10, 0.5), (100, 1.0)] {
-        let gc_content_iter = get_gc_content(record.seq(), window_size * window_size_factor);
+        let gc_content_iter = get_gc_content(
+            record.seq(),
+            window_size * window_size_factor,
+            window_size / 10,
+        );
 
         chart
             .draw_series(LineSeries::new(gc_content_iter, ygb_color(color_idx)))?

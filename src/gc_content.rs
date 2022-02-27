@@ -4,9 +4,8 @@
 pub fn get_gc_content(
     sequence: &[u8],
     window_size: usize,
-) -> impl Iterator<Item = (usize, f32)> + '_ {
-    let step = window_size / 10;
-
+    step: usize,
+) -> impl Iterator<Item = (usize, f64)> + '_ {
     let iter = sequence
         .windows(window_size)
         .step_by(step)
@@ -19,7 +18,7 @@ pub fn get_gc_content(
                 })
                 .sum::<u64>()
         })
-        .map(move |sum| sum as f32 / window_size as f32);
+        .map(move |sum| sum as f64 / window_size as f64);
 
     (0..).step_by(step).zip(iter)
 }
