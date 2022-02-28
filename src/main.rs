@@ -6,7 +6,6 @@ use anyhow::{anyhow, Result};
 use bigtools::{bigwigread::BigWigRead, seekableread::ReopenableFile};
 use bio::io::fasta;
 use clap::Parser;
-use regex::Regex;
 use std::{
     collections::HashSet,
     fs::File,
@@ -136,15 +135,11 @@ fn get_tfbs_avg_nsome_affinity(
         for m in regex.find_iter(&p.sequence) {
             let tfbs_center = p.location + ((m.end() - m.start()) / 2);
 
-            let mut affinity = big_wig_reader.values(
+            let affinity = big_wig_reader.values(
                 "chr1",
                 tfbs_center as u32 - 500,
                 tfbs_center as u32 + 501,
             )?;
-
-            // if p.strand == gtf::Strand::Minus {
-            //     affinity.reverse();
-            // }
 
             for (i, v) in affinity.iter().enumerate() {
                 if !v.is_nan() {
@@ -155,8 +150,6 @@ fn get_tfbs_avg_nsome_affinity(
         }
     }
     
-    println!("{total_affinity:#?}");
-
     let avg_affinity = (-500..501).zip(total_affinity.iter().map(|&(count, v)| v / count as f64)).collect();
 
     Ok(avg_affinity)
