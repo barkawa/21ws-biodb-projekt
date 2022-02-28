@@ -3,9 +3,10 @@ mod gtf;
 mod plots;
 
 use anyhow::{anyhow, Result};
-use bigtools::bigwigread::BigWigRead;
+use bigtools::{bigwigread::BigWigRead, seekableread::ReopenableFile};
 use bio::io::fasta;
 use clap::Parser;
+use regex::Regex;
 use std::{
     collections::HashSet,
     fs::File,
@@ -82,14 +83,14 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let mut reader = BigWigRead::from_file_and_attach(cli.mnase_seq.as_str()).unwrap();
-    
+    let mut big_wig_reader = BigWigRead::from_file_and_attach(cli.mnase_seq.as_str()).unwrap();
+
     if cli.promotor_nsome_affinity {
         let mut total_affinity = [(0u32, 0.0); 1100];
 
         for p in &promotors {
             let mut affinity =
-                reader.values("chr1", p.location as u32, p.location as u32 + 1100)?;
+                big_wig_reader.values("chr1", p.location as u32, p.location as u32 + 1100)?;
 
             if p.strand == gtf::Strand::Minus {
                 affinity.reverse();
@@ -104,17 +105,61 @@ fn main() -> Result<()> {
         }
 
         let avg_affinity =
-            (-1000..100).zip(total_affinity.iter().map(|&(count, v)| v / count as f64 ));
+            (-1000..100).zip(total_affinity.iter().map(|&(count, v)| v / count as f64));
 
         plots::plot3(avg_affinity)?;
         return Ok(());
     }
 
     if cli.tfbs_nsome_affinity {
-        todo!();
+        let regex_ap_1 = regex::bytes::Regex::new(r"TGA(C|G)TCA").unwrap();
+        let regex_nf_y = regex::bytes::Regex::new(r"(CCAAT|ATTGG)").unwrap();
+
+        let ap_1 = get_tfbs_avg_nsome_affinity(&regex_ap_1, &promotors, &mut big_wig_reader)?;
+        plots::plot4(ap_1, "AP-1")?;
+
+        let nf_y = get_tfbs_avg_nsome_affinity(&regex_nf_y, &promotors, &mut big_wig_reader)?;
+        plots::plot4(nf_y, "NF-Y")?;
     }
 
     Ok(())
+}
+
+fn get_tfbs_avg_nsome_affinity(
+    regex: &regex::bytes::Regex,
+    promotors: &[PromotorRegion],
+    big_wig_reader: &mut BigWigRead<ReopenableFile, File>,
+) -> Result<Vec<(i32, f64)>> {
+    let mut total_affinity = vec![(0, 0.0); 1001];
+
+    for p in promotors {
+        for m in regex.find_iter(&p.sequence) {
+            let tfbs_center = p.location + ((m.end() - m.start()) / 2);
+
+            let mut affinity = big_wig_reader.values(
+                "chr1",
+                tfbs_center as u32 - 500,
+                tfbs_center as u32 + 501,
+            )?;
+
+            // if p.strand == gtf::Strand::Minus {
+            //     affinity.reverse();
+            // }
+
+            for (i, v) in affinity.iter().enumerate() {
+                if !v.is_nan() {
+                    total_affinity[i].1 += *v as f64;
+                    total_affinity[i].0 += 1;
+                }
+            }
+        }
+    }
+    
+    println!("{total_affinity:#?}");
+
+    let avg_affinity = (-500..501).zip(total_affinity.iter().map(|&(count, v)| v / count as f64)).collect();
+
+    Ok(avg_affinity)
 }
 
 #[derive(Debug)]

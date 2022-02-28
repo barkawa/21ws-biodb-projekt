@@ -1,3 +1,6 @@
+// Partial implementation the GENCODE GTF file specification
+// https://www.gencodegenes.org/pages/data_format.html
+
 use anyhow::{anyhow, bail, Result};
 use flate2::read::GzDecoder;
 use lazy_static::lazy_static;
@@ -10,8 +13,6 @@ use std::{
     path::Path,
 };
 
-// Partial implementation the GENCODE GTF file specification
-// https://www.gencodegenes.org/pages/data_format.html
 #[derive(Debug, PartialEq, Eq)]
 pub enum Strand {
     Plus,

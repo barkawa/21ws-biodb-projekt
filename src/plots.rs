@@ -4,7 +4,6 @@ use plotters::prelude::*;
 
 use crate::gc_content::get_gc_content;
 
-// Rust really needs a better plotting library...
 pub fn plot1(record: &fasta::Record, window_size: usize) -> Result<()> {
     let figure = SVGBackend::new("gc-content.svg", (800, 250)).into_drawing_area();
 
@@ -110,6 +109,35 @@ pub fn plot3(avg_affinity: impl Iterator<Item = (i32, f64)>) -> Result<()> {
         .draw()?;
 
     chart.draw_series(LineSeries::new(avg_affinity, ygb_color(1.0)))?;
+
+    Ok(())
+}
+
+pub fn plot4(avg_affinity: Vec<(i32, f64)>, tf_name: &str) -> Result<()> {
+    let out_file_name = tf_name.to_string() + ".svg";
+    let figure = SVGBackend::new(&out_file_name, (800, 250)).into_drawing_area();
+
+    figure.fill(&WHITE).unwrap();
+
+    let mut chart = ChartBuilder::on(&figure)
+        .margin(10)
+        .set_label_area_size(LabelAreaPosition::Left, 40)
+        .set_label_area_size(LabelAreaPosition::Bottom, 40)
+        .caption(
+            tf_name.to_string() + " Binding Site Nucleosome Affinity",
+            ("sans-serif", 14),
+        )
+        .build_cartesian_2d(-500i32..501i32, 0.0f64..2.0f64)?;
+
+    // configure labels, axes, etc.
+    chart
+        .configure_mesh()
+        .disable_mesh()
+        .x_desc("bp")
+        .y_desc("MNase-seq signal")
+        .draw()?;
+
+    chart.draw_series(LineSeries::new(avg_affinity.into_iter(), ygb_color(1.0)))?;
 
     Ok(())
 }
